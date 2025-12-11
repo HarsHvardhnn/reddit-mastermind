@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Reddit Calendar Generator</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f5f5f5;
+            margin: 0;
+            padding: 20px;
+        }
+        
+        .wrapper {
+            max-width: 1000px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border: 1px solid #ddd;
+        }
+        
+        h1 {
+            margin-top: 0;
+            color: #333;
+        }
+        
+        .subtitle {
+            color: #666;
+            margin-bottom: 25px;
+        }
+        
+        .buttons {
+            margin-bottom: 25px;
+        }
+        
+        button {
+            padding: 10px 20px;
+            margin-right: 10px;
+            font-size: 14px;
+            border: 1px solid #ccc;
+            background: #4a90e2;
+            color: white;
+            cursor: pointer;
+        }
+        
+        button:hover {
+            background: #357abd;
+        }
+        
+        button:disabled {
+            background: #ccc;
+            cursor: default;
+        }
+        
+        #status {
+            padding: 10px;
+            margin-bottom: 20px;
+            display: none;
+        }
+        
+        #status.success {
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+        }
+        
+        #status.error {
+            background: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+        }
+        
+        #loading {
+            display: none;
+            text-align: center;
+            padding: 20px;
+        }
+        
+        .week-info {
+            background: #f8f9fa;
+            padding: 12px;
+            margin-bottom: 20px;
+            border-left: 3px solid #4a90e2;
+        }
+        
+        .post {
+            background: #fafafa;
+            border: 1px solid #e0e0e0;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .post-title {
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 8px;
+            color: #222;
+        }
+        
+        .post-meta {
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 10px;
+        }
+        
+        .post-body {
+            margin: 10px 0;
+            line-height: 1.5;
+            color: #444;
+        }
+        
+        .tags {
+            margin-top: 10px;
+        }
+        
+        .tag {
+            display: inline-block;
+            background: #e0e0e0;
+            padding: 3px 8px;
+            margin-right: 5px;
+            font-size: 11px;
+            border-radius: 3px;
+        }
+        
+        .comments {
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px solid #ddd;
+        }
+        
+        .comment {
+            background: white;
+            padding: 10px;
+            margin: 8px 0;
+            border-left: 2px solid #999;
+        }
+        
+        .comment.reply {
+            margin-left: 25px;
+            border-left-color: #ccc;
+        }
+        
+        .comment-user {
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 5px;
+        }
+        
+        .comment-text {
+            color: #333;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="wrapper">
+        <h1>Reddit Content Calendar Generator</h1>
+        <p class="subtitle">Generate weekly content calendars for Reddit posts and comments</p>
+        
+        <div id="status"></div>
+        
+        <div class="buttons">
+            <button onclick="generateWeek()">Generate This Week</button>
+            <button onclick="generateWeeks()">Generate Next 4 Weeks</button>
+        </div>
+        
+        <div id="loading">Loading...</div>
+        
+        <div id="output"></div>
+    </div>
+    
+    <script>
+        function showMsg(text, type) {
+            const el = document.getElementById('status');
+            el.textContent = text;
+            el.className = type;
+            el.style.display = 'block';
+            setTimeout(() => {
+                el.style.display = 'none';
+            }, 4000);
+        }
+        
+        function generateWeek() {
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('output').innerHTML = '';
+            
+            fetch('/api/generate-week', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({})
+            })
+            .then(res => res.json())
+            .then(data => {
+                document.getElementById('loading').style.display = 'none';
+                if (data.error) {
+                    showMsg(data.error, 'error');
+                } else {
+                    showMsg('Calendar generated!', 'success');
+                    showCalendar(data.calendar);
+                }
+            })
+            .catch(err => {
+                document.getElementById('loading').style.display = 'none';
+                showMsg('Error: ' + err.message, 'error');
+            });
+        }
+        
+        function generateWeeks() {
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('output').innerHTML = '';
+            
+            fetch('/api/generate-subsequent', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({num_weeks: 4})
+            })
+            .then(res => res.json())
+            .then(data => {
+                document.getElementById('loading').style.display = 'none';
+                if (data.error) {
+                    showMsg(data.error, 'error');
+                } else {
+                    showMsg('Generated ' + data.weeks.length + ' weeks', 'success');
+                    showMultipleWeeks(data.weeks);
+                }
+            })
+            .catch(err => {
+                document.getElementById('loading').style.display = 'none';
+                showMsg('Error: ' + err.message, 'error');
+            });
+        }
+        
+        function showCalendar(cal) {
+            const output = document.getElementById('output');
+            let html = '<div class="week-info">Week: ' + cal.week_start + ' to ' + cal.week_end + '</div>';
+            
+            cal.posts.forEach(post => {
+                const postComments = cal.comments.filter(c => c.post_id === post.post_id);
+                const topLevel = postComments.filter(c => !c.parent_comment_id);
+                const replies = {};
+                
+                postComments.forEach(c => {
+                    if (c.parent_comment_id) {
+                        if (!replies[c.parent_comment_id]) {
+                            replies[c.parent_comment_id] = [];
+                        }
+                        replies[c.parent_comment_id].push(c);
+                    }
+                });
+                
+                html += '<div class="post">';
+                html += '<div class="post-title">' + post.title + '</div>';
+                html += '<div class="post-meta">r/' + post.subreddit.replace('r/', '') + ' by ' + post.author_username + ' at ' + post.timestamp + '</div>';
+                html += '<div class="post-body">' + post.body + '</div>';
+                
+                if (post.keyword_ids.length > 0) {
+                    html += '<div class="tags">';
+                    post.keyword_ids.forEach(kid => {
+                        html += '<span class="tag">' + kid + '</span>';
+                    });
+                    html += '</div>';
+                }
+                
+                if (postComments.length > 0) {
+                    html += '<div class="comments"><strong>Comments (' + postComments.length + '):</strong>';
+                    
+                    function renderComment(comment, isReply) {
+                        let commentHtml = '<div class="comment' + (isReply ? ' reply' : '') + '">';
+                        commentHtml += '<div class="comment-user"><strong>' + comment.username + '</strong> - ' + comment.timestamp + '</div>';
+                        commentHtml += '<div class="comment-text">' + comment.comment_text + '</div>';
+                        
+                        if (replies[comment.comment_id]) {
+                            replies[comment.comment_id].forEach(reply => {
+                                commentHtml += renderComment(reply, true);
+                            });
+                        }
+                        
+                        commentHtml += '</div>';
+                        return commentHtml;
+                    }
+                    
+                    topLevel.forEach(comment => {
+                        html += renderComment(comment, false);
+                    });
+                    
+                    html += '</div>';
+                }
+                
+                html += '</div>';
+            });
+            
+            output.innerHTML = html;
+        }
+        
+        function showMultipleWeeks(weeks) {
+            const output = document.getElementById('output');
+            let html = '';
+            
+            weeks.forEach(weekData => {
+                const cal = weekData.calendar;
+                html += '<div style="margin-bottom: 30px;">';
+                html += '<div class="week-info">Week ' + weekData.week_number + ': ' + cal.week_start + ' to ' + cal.week_end + '</div>';
+                
+                cal.posts.forEach(post => {
+                    const postComments = cal.comments.filter(c => c.post_id === post.post_id);
+                    html += '<div class="post">';
+                    html += '<div class="post-title">' + post.title + '</div>';
+                    html += '<div class="post-meta">r/' + post.subreddit.replace('r/', '') + ' by ' + post.author_username + ' at ' + post.timestamp + '</div>';
+                    html += '<div class="post-body">' + post.body + '</div>';
+                    
+                    if (post.keyword_ids.length > 0) {
+                        html += '<div class="tags">';
+                        post.keyword_ids.forEach(kid => {
+                            html += '<span class="tag">' + kid + '</span>';
+                        });
+                        html += '</div>';
+                    }
+                    
+                    if (postComments.length > 0) {
+                        html += '<div class="comments"><strong>Comments (' + postComments.length + ')</strong></div>';
+                    }
+                    
+                    html += '</div>';
+                });
+                
+                html += '</div>';
+            });
+            
+            output.innerHTML = html;
+        }
+    </script>
+</body>
+</html>
